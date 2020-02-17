@@ -5,82 +5,113 @@ import { beautifyPriceValue, beautifyBigPriceValue } from "./priceFormatter";
 import "./CoinsTable.css";
 
 class CoinsTable extends React.Component {
-  state = {
-    coins: {}
-  };
-
-  componentWillMount() {
-    this.getAllCoins();
-  }
-
-  getAllCoins = () => {
-    axios.get("https://api.coincap.io/v2/assets?limit=15").then(response => {
-      if (response.status === 200) {
-        let coins = {};
-        response.data.data.map(coin => (coins[coin.id] = coin));
-        this.setState({ coins: coins });
-        this.subscribeCryptoStream();
-      }
-    });
-  };
-
-  subscribeCryptoStream = () => {
-    let assets = Object.keys(this.state.coins).join(",");
-    const pricesWs = new WebSocket(
-      `wss://ws.coincap.io/prices?assets=${assets}`
-    );
-    pricesWs.onmessage = msg => {
-      this.updateCoin(Object.entries(JSON.parse(msg.data)));
+    state = {
+        coins: {}
     };
-  };
 
-  updateCoin = message => {
-    let coins = Object.assign({}, this.state.coins);
-    message.forEach(pair => {
-      coins[pair[0]].priceUsd = pair[1];
-    });
-    this.setState({ coins: coins });
-  };
+    componentWillMount() {
+        this.getAllCoins();
+    }
 
-  render() {
-    return (
-      <div className="table__container">
-        <div className="table">
-          <div className="table__row table__row--heading">
-            <div className="table__cell table__cell--heading">Name</div>
-            <div className="table__cell table__cell--heading">Price</div>
-            <div className="table__cell table__cell--heading hidden-xs">
-              Market Cap
-            </div>
-            <div className="table__cell table__cell--heading hidden-xs">
-              Volume (24Hr)
-            </div>
-          </div>
-          <Scrollbars style={{ height: 500 }} className="table__body">
-            <div>
-              {Object.keys(this.state.coins).map((key, index) => {
-                let coin = this.state.coins[key];
-                return (
-                  <div key={index} className="table__row">
-                    <div className="table__cell">{coin.name}</div>
-                    <div className="table__cell">
-                      ${beautifyPriceValue(coin.priceUsd)}
+    getAllCoins = () => {
+        axios
+            .get("https://api.coincap.io/v2/assets?limit=15")
+            .then(response => {
+                if (response.status === 200) {
+                    let coins = {};
+                    response.data.data.map(coin => (coins[coin.id] = coin));
+                    this.setState({ coins: coins });
+                    this.subscribeCryptoStream();
+                }
+            });
+    };
+
+    subscribeCryptoStream = () => {
+        let assets = Object.keys(this.state.coins).join(",");
+        const pricesWs = new WebSocket(
+            `wss://ws.coincap.io/prices?assets=${assets}`
+        );
+        pricesWs.onmessage = msg => {
+            this.updateCoin(Object.entries(JSON.parse(msg.data)));
+        };
+        pricesWs.onclose = function(err) {
+            console.log(
+                "Socket is closed. Reconnect will be attempted in 1 second.",
+                err.reason
+            );
+            setTimeout(function() {
+                this.subscribeCryptoStream();
+            }, 1000);
+        };
+        pricesWs.onerror = function(err) {
+            console.error(
+                "Socket encountered error: ",
+                err.message,
+                "Closing socket"
+            );
+            pricesWs.close();
+        };
+    };
+
+    updateCoin = message => {
+        let coins = Object.assign({}, this.state.coins);
+        message.forEach(pair => {
+            coins[pair[0]].priceUsd = pair[1];
+        });
+        this.setState({ coins: coins });
+    };
+
+    render() {
+        return (
+            <div className="table__container">
+                <div className="table">
+                    <div className="table__row table__row--heading">
+                        <div className="table__cell table__cell--heading">
+                            Name
+                        </div>
+                        <div className="table__cell table__cell--heading">
+                            Price
+                        </div>
+                        <div className="table__cell table__cell--heading hidden-xs">
+                            Market Cap
+                        </div>
+                        <div className="table__cell table__cell--heading hidden-xs">
+                            Volume (24Hr)
+                        </div>
                     </div>
-                    <div className="table__cell hidden-xs">
-                      ${beautifyBigPriceValue(coin.marketCapUsd)}
-                    </div>
-                    <div className="table__cell hidden-xs">
-                      ${beautifyBigPriceValue(coin.volumeUsd24Hr)}
-                    </div>
-                  </div>
-                );
-              })}
+                    <Scrollbars style={{ height: 500 }} className="table__body">
+                        <div>
+                            {Object.keys(this.state.coins).map((key, index) => {
+                                let coin = this.state.coins[key];
+                                return (
+                                    <div key={index} className="table__row">
+                                        <div className="table__cell">
+                                            {coin.name}
+                                        </div>
+                                        <div className="table__cell">
+                                            ${beautifyPriceValue(coin.priceUsd)}
+                                        </div>
+                                        <div className="table__cell hidden-xs">
+                                            $
+                                            {beautifyBigPriceValue(
+                                                coin.marketCapUsd
+                                            )}
+                                        </div>
+                                        <div className="table__cell hidden-xs">
+                                            $
+                                            {beautifyBigPriceValue(
+                                                coin.volumeUsd24Hr
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </Scrollbars>
+                </div>
             </div>
-          </Scrollbars>
-        </div>
-      </div>
-    );
-  }
+        );
+    }
 }
 
 export default CoinsTable;
